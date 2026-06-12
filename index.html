@@ -174,6 +174,49 @@
         .hidden { display: none; }
         hr { border: 0; height: 1px; background: #e1d7f5; margin: 30px 0; }
         p { color: #615c6d; font-size: 15px; }
+
+        /* 📜 遊び方ポップアップの背景（暗幕） */
+        .modal {
+            display: none; /* 初期状態は非表示 */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        /* 📜 ポップアップのコンテンツ本体（コンパクト版） */
+        .modal-content {
+            background-color: #ffffff;
+            margin: 8% auto;
+            padding: 25px;
+            border-radius: 24px;
+            max-width: 400px; /* 横幅を少しスリムに */
+            width: 85%;
+            max-height: 70vh; /* 💡 画面縦幅の70%までに制限 */
+            overflow-y: auto; /* 💡 はみ出た場合は中だけスクロール */
+            text-align: left;
+            box-shadow: 0 10px 30px rgba(106, 90, 205, 0.2);
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 📜 遊び方内の箇条書きデザイン */
+        .rule-list {
+            padding-left: 20px;
+            line-height: 1.6;
+            color: #554f60;
+        }
+        .rule-list li {
+            margin-bottom: 10px;
+        }
     </style>
 </head>
 <body>
@@ -184,6 +227,12 @@
 
     <!-- 1. 初期ログイン画面 -->
     <div id="login-screen" class="lobby-box">
+
+        <!-- 👇 ここに「遊び方」ボタンを追加 -->
+        <button id="how-to-play-btn" class="menu-btn" style="background: #6a5acd; background: rgba(106, 90, 205, 0.1); color: #6a5acd; box-shadow: none; width: 85%; margin-bottom: 20px; border: 1px solid #b39ddb;">
+            📖 ゲームの遊び方を見る
+        </button>
+
         <h3 style="font-size: 16px; margin-top: 0; color: #6a5acd; font-weight: 700;">PLAYER NAME</h3>
         <input type="text" id="player-name-input" class="join-input" placeholder="名前を入力（8文字まで）" maxlength="8">
         
@@ -253,7 +302,35 @@
         </button>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="main.js"></script>
+<!-- 👇 bodyタグが閉じる直前（</body >の前）にポップアップのHTMLを追加 -->
+<div id="rules-modal" class="modal">
+    <div class="modal-content">
+        <h2 style="color: #6a5acd; margin-top: 0; text-align: center; font-size: 20px;">📖 Nuance Sync の遊び方</h2>
+        <hr style="margin: 15px 0;">
+        <ul class="rule-list">
+            <li>このゲームは全員で協力してクリアを目指すワードゲームです。</li>
+            <li><strong>ゲームの目的：</strong> 場のカードを減らしていき、残り<b>1枚</b>にできればプレイヤー全員の勝利となります。</li>
+            <li><strong>ゲームの流れ：</strong>
+                <ul style="padding-left: 15px; margin-top: 5px;">
+                    <li>毎ラウンド、1つの「お題（CURRENT TARGET）」が提示されます。</li>
+                    <li>プレイヤーは、場のカード（CARDS ON FIELD）の中から<b>お題に最もニュアンスが近い</b>と思うカードを1枚選んで投票します。</li>
+                </ul>
+            </li>
+            <li><strong>判定：</strong>
+                <ul style="padding-left: 15px; margin-top: 5px;">
+                    <li><b>全員の投票が一致した場合：</b> そのカードを場から取り除くことができます（クリアに近づきます）。</li>
+                    <li><b>1人でも不一致だった場合：</b> 失敗となり、その時のお題カードが場にペナルティとして追加されてしまいます。</li>
+                </ul>
+            </li>
+            <li><strong>敗北条件：</strong> 場のカードが<b>10枚</b>になってしまうとゲームオーバーです。</li>
+        </ul>
+        <hr style="margin: 15px 0;">
+        <button id="close-rules-btn" class="menu-btn" style="width: 100%; margin: 0;">とじる</button>
+    </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="main.js"></script>
+
 </body>
 </html>

@@ -223,3 +223,25 @@ function disableAllButtons() {
     const buttons = document.querySelectorAll('.field-button');
     buttons.forEach(btn => btn.disabled = true);
 }
+
+// 📖 遊び方ポップアップの制御
+const howToPlayBtn = document.getElementById('how-to-play-btn');
+const rulesModal = document.getElementById('rules-modal');
+const closeRulesBtn = document.getElementById('close-rules-btn');
+
+// 遊び方ボタンを押したら表示
+howToPlayBtn.onclick = () => {
+    rulesModal.style.display = 'block';
+};
+
+// とじるボタンを押したら非表示
+closeRulesBtn.onclick = () => {
+    rulesModal.style.display = 'none';
+};
+
+// ポップアップの外側の暗い部分を押しても閉じるようにする
+window.onclick = (event) => {
+    if (event.target === rulesModal) {
+        rulesModal.style.display = 'none';
+    }
+};
