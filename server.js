@@ -24,15 +24,57 @@ function getRandomWords(count, excludeWords = []) {
     return shuffled.slice(0, count);
 }
 
-function createNewRoom(roomId) {
+function createNewRoom(roomId, hostId, existingNames = {}) {
     const initialWords = getRandomWords(5);
     rooms[roomId] = {
         fieldCards: initialWords.slice(0, 4),
         targetCard: initialWords[4],
         votes: {},        
-        playerNames: {},  
-        cardCount: 4
+        playerNames: existingNames,  
+        cardCount: 4,
+        hostId: hostId,       
+        isStarted: false      
     };
+}
+
+function sendLobbyUpdate(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    const clientIds = io.sockets.adapter.rooms.get(roomId);
+    if (!clientIds) return;
+
+    const members = [];
+    clientIds.forEach(id => {
+        members.push({
+            id: id,
+            name: room.playerNames[id] || "ゲスト",
+            isHost: id === room.hostId
+        });
+    });
+
+    clientIds.forEach(id => {
+        io.to(id).emit('lobby-update', {
+            roomId: roomId,
+            myName: room.playerNames[id],
+            members: members,
+            isHost: id === room.hostId
+        });
+    });
+}
+
+// 💡 【新設】現在のリアルタイムな投票状況（投票済み人数 / 全人数）を部屋の全員に伝える関数
+function broadcastVoteProgress(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+
+    const totalPlayers = io.sockets.adapter.rooms.get(roomId)?.size || 1;
+    const currentVotes = Object.keys(room.votes).length;
+
+    io.to(roomId).emit('vote-progress', {
+        currentVotes: currentVotes,
+        totalPlayers: totalPlayers
+    });
 }
 
 io.on('connection', (socket) => {
@@ -40,11 +82,10 @@ io.on('connection', (socket) => {
 
     socket.on('create-room', () => {
         const roomId = Math.floor(1000 + Math.random() * 9000).toString();
-        createNewRoom(roomId);
+        createNewRoom(roomId, socket.id); 
         socket.emit('room-created', roomId);
     });
 
-    // 💡 変更：部屋に入るときに「なまえ（playerName）」も一緒に受け取る
     socket.on('join-room', (data) => {
         const { roomId, playerName } = data;
 
@@ -53,20 +94,62 @@ io.on('connection', (socket) => {
             return;
         }
 
+        if (rooms[roomId].isStarted) {
+            socket.emit('join-error', 'この部屋のゲームはすでに開始されています。');
+            return;
+        }
+
         currentRoomId = roomId;
         socket.join(roomId);
 
         const room = rooms[roomId];
-        // 💡 入力された名前をセット（空っぽなら「ゲスト」にする）
         room.playerNames[socket.id] = playerName.trim() || "ゲスト";
 
-        socket.emit('init-state', {
-            roomId: roomId,
-            myName: room.playerNames[socket.id],
-            fieldCards: room.fieldCards,
-            targetCard: room.targetCard,
-            cardCount: room.cardCount
-        });
+        sendLobbyUpdate(roomId);
+    });
+
+    socket.on('start-game', () => {
+        if (!currentRoomId || !rooms[currentRoomId]) return;
+        const room = rooms[currentRoomId];
+
+        if (socket.id !== room.hostId) return;
+
+        room.isStarted = true;
+
+        const clientIds = io.sockets.adapter.rooms.get(currentRoomId);
+        const totalPlayers = clientIds?.size || 1; // 全人数を計算
+        if (clientIds) {
+            clientIds.forEach(id => {
+                io.to(id).emit('init-state', {
+                    roomId: currentRoomId,
+                    myName: room.playerNames[id],
+                    fieldCards: room.fieldCards,
+                    targetCard: room.targetCard,
+                    cardCount: room.cardCount,
+                    totalPlayers: totalPlayers // クライアントの初期表示用に渡す
+                });
+            });
+        }
+    });
+
+    socket.on('close-room', () => {
+        if (!currentRoomId || !rooms[currentRoomId]) return;
+        const room = rooms[currentRoomId];
+
+        if (socket.id !== room.hostId) return;
+
+        io.to(currentRoomId).emit('room-closed', 'ホストによって部屋が解散されました。');
+
+        const clientIds = io.sockets.adapter.rooms.get(currentRoomId);
+        if (clientIds) {
+            const ids = Array.from(clientIds);
+            ids.forEach(id => {
+                const s = io.sockets.sockets.get(id);
+                if (s) s.leave(currentRoomId);
+            });
+        }
+
+        delete rooms[currentRoomId];
     });
 
     socket.on('submit-vote', (selectedCard) => {
@@ -77,6 +160,9 @@ io.on('connection', (socket) => {
 
         const totalPlayers = io.sockets.adapter.rooms.get(currentRoomId)?.size || 1;
         const totalVotes = Object.keys(room.votes).length;
+
+        // 💡 投票があるたびに全員に途中経過人数を通知する
+        broadcastVoteProgress(currentRoomId);
 
         if (totalVotes >= totalPlayers) {
             io.to(currentRoomId).emit('all-voted');
@@ -128,26 +214,67 @@ io.on('connection', (socket) => {
 
         if (room.cardCount <= 1) {
             io.to(currentRoomId).emit('game-over', { won: true, message: "🎉ゲームクリア！みんなの心が1つになりました！" });
-            createNewRoom(currentRoomId);
+            const hostId = room.hostId;
+            const currentNames = room.playerNames; 
+            createNewRoom(currentRoomId, hostId, currentNames); 
+            sendLobbyUpdate(currentRoomId);
+            return;
         } else if (room.cardCount >= 10) {
             io.to(currentRoomId).emit('game-over', { won: false, message: "💀ゲームオーバー...カードが10枚になっちゃいました。" });
-            createNewRoom(currentRoomId);
+            const hostId = room.hostId;
+            const currentNames = room.playerNames; 
+            createNewRoom(currentRoomId, hostId, currentNames); 
+            sendLobbyUpdate(currentRoomId);
+            return;
         }
 
-        io.to(currentRoomId).emit('init-state', {
-            roomId: currentRoomId,
-            fieldCards: room.fieldCards,
-            targetCard: room.targetCard,
-            cardCount: room.cardCount
-        });
+        const clientIds = io.sockets.adapter.rooms.get(currentRoomId);
+        const totalPlayers = clientIds?.size || 1;
+        if (clientIds) {
+            clientIds.forEach(id => {
+                io.to(id).emit('init-state', {
+                    roomId: currentRoomId,
+                    myName: room.playerNames[id],
+                    fieldCards: room.fieldCards,
+                    targetCard: room.targetCard,
+                    cardCount: room.cardCount,
+                    totalPlayers: totalPlayers // 次のラウンド開始時にも人数を渡す
+                });
+            });
+        }
     });
 
     socket.on('disconnect', () => {
         if (currentRoomId && rooms[currentRoomId]) {
-            delete rooms[currentRoomId].votes[socket.id];
-            delete rooms[currentRoomId].playerNames[socket.id];
+            const room = rooms[currentRoomId];
+            delete room.votes[socket.id];
+            delete room.playerNames[socket.id];
+            
             const totalPlayers = io.sockets.adapter.rooms.get(currentRoomId)?.size || 0;
-            if (totalPlayers === 0) delete rooms[currentRoomId];
+            
+            if (totalPlayers === 0) {
+                delete rooms[currentRoomId];
+            } else {
+                if (socket.id === room.hostId) {
+                    const clientIds = io.sockets.adapter.rooms.get(currentRoomId);
+                    if (clientIds) {
+                        room.hostId = clientIds.values().next().value; 
+                    }
+                }
+                if (!room.isStarted) {
+                    sendLobbyUpdate(currentRoomId);
+                } else {
+                    // 💡 もしゲーム中に誰かが回線落ちしたら、残りの人で進行できるように
+                    // 投票済み人数と全人数の表示を更新して再送する
+                    broadcastVoteProgress(currentRoomId);
+                    
+                    // 万が一、全員投票済みの状態に変化したら全員一致の判定処理へ進める
+                    const currentVotes = Object.keys(room.votes).length;
+                    if (currentVotes >= totalPlayers) {
+                        io.to(currentRoomId).emit('all-voted');
+                    }
+                }
+            }
         }
     });
 });
