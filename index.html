@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>協力型ワードゲーム - Sweet Sync</title>
+    <style>
+        body { 
+            font-family: 'Hiragino Maru Gothic ProN', 'Rounded Mplus 1c', sans-serif; 
+            text-align: center; 
+            background-color: #fff0f5; 
+            background-image: radial-gradient(#fff 20%, transparent 20%), radial-gradient(#fff 20%, transparent 20%);
+            background-size: 30px 30px;
+            background-position: 0 0, 15px 15px; 
+            color: #5c4033; 
+            padding: 20px; 
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        h1 {
+            font-size: 2.3rem;
+            color: #ff69b4; 
+            text-shadow: 2px 2px 0px #ffffff, 4px 4px 0px #ffb6c1;
+            margin-bottom: 25px;
+        }
+
+        .card-container { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin: 25px 0; 
+            flex-wrap: wrap;
+        }
+        
+        .card { 
+            padding: 22px 18px; 
+            background: #ffffff; 
+            border: 3px solid #ffb6c1; 
+            border-radius: 20px; 
+            font-size: 18px; 
+            font-weight: bold; 
+            min-width: 110px; 
+            box-shadow: 0 6px 0px #ffb6c1; 
+            color: #5c4033;
+        }
+
+        .target-card { 
+            background: #fffacd; 
+            border-color: #ffdab9;
+            box-shadow: 0 6px 0px #ffdab9;
+            font-size: 22px;
+            transform: scale(1.05);
+        }
+
+        .field-button { 
+            background: #ffffff;
+            color: #ff69b4;
+            border: 3px solid #ffb6c1; 
+            cursor: pointer; 
+            transition: all 0.2s ease;
+        }
+        .field-button:hover { 
+            background: #ffecf2; 
+            transform: translateY(-3px);
+            box-shadow: 0 9px 0px #ffb6c1;
+        }
+        .field-button:disabled { 
+            background: #f5f5f5; 
+            border-color: #dcdcdc; 
+            color: #b0c4de; 
+            box-shadow: 0 4px 0px #dcdcdc;
+            cursor: not-allowed; 
+            transform: translateY(2px);
+        }
+        
+        .lobby-box, .result-box { 
+            background: #ffffff; 
+            padding: 35px; 
+            border-radius: 24px; 
+            max-width: 450px; 
+            margin: 30px auto; 
+            border: 3px solid #ffb6c1; 
+            box-shadow: 0 10px 20px rgba(255, 182, 193, 0.3);
+        }
+
+        .menu-btn { 
+            background: #ff69b4; 
+            color: white; 
+            border: none; 
+            padding: 14px 30px; 
+            font-size: 18px; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            margin: 12px; 
+            font-weight: bold; 
+            box-shadow: 0 5px 0px #db7093;
+            transition: all 0.1s;
+        }
+        .menu-btn:hover { 
+            transform: translateY(2px);
+            box-shadow: 0 3px 0px #db7093;
+        }
+
+        .join-input { 
+            padding: 12px; 
+            font-size: 16px; 
+            width: 180px; 
+            text-align: center; 
+            border-radius: 15px; 
+            border: 3px solid #ffb6c1; 
+            background: #ffffff;
+            color: #5c4033;
+            font-weight: bold;
+            margin: 5px;
+        }
+        .join-input:focus {
+            outline: none;
+            border-color: #ff69b4;
+        }
+        
+        #status {
+            font-size: 1.1rem;
+            padding: 12px 25px; 
+            border-radius: 15px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 15px 0;
+        }
+        .status-blue { background: #e0f7fa; border: 2px solid #b2ebf2; color: #00838f; } 
+        .status-orange { background: #fff3e0; border: 2px solid #ffe0b2; color: #ef6c00; } 
+        .status-red { background: #ffebee; border: 2px solid #ffcdd2; color: #c62828; } 
+
+        .vote-list { 
+            text-align: left; 
+            max-width: 320px; 
+            margin: 20px auto; 
+            font-size: 18px; 
+            line-height: 2;
+            background: #fff5f7;
+            padding: 20px;
+            border-radius: 18px;
+            border: 2px dashed #ffb6c1; 
+        }
+        
+        .hidden { display: none; }
+        hr { border: 0; height: 3px; background: #ffe4e1; margin: 25px 0; border-radius: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>🧸 協力型ワードゲーム 🧸</h1>
+
+    <div id="lobby-screen" class="lobby-box">
+        <h3 style="font-size: 20px; margin-top: 0; color: #ff69b4;">あなたのおなまえ</h3>
+        <input type="text" id="player-name-input" class="join-input" placeholder="なまえを入力（8文字まで）" maxlength="8" style="width: 80%;">
+        
+        <hr>
+        
+        <h3 style="font-size: 20px; color: #ff69b4;">お部屋の選択</h3>
+        <button id="create-room-btn" class="menu-btn">あたらしく部屋をつくる</button>
+        <hr>
+        <p style="color: #8b7355; font-weight: bold;">おともだちの部屋にあそびに行く</p>
+        <input type="text" id="room-id-input" class="join-input" placeholder="4けたの数字" maxlength="4" style="width: 140px;">
+        <button id="join-room-btn" class="menu-btn" style="background: #20b2aa; box-shadow: 0 5px 0px #008b8b;">はいる</button>
+    </div>
+
+    <div id="game-screen" class="hidden">
+        <div style="display: flex; justify-content: space-between; max-width: 600px; margin: 0 auto; font-size: 15px; font-weight: bold;">
+            <span id="room-display" style="background: #ffb6c1; padding: 6px 15px; border-radius: 20px; color: #fff;">ルームID: ----</span>
+            <span id="my-name-display" style="background: #ffb6c1; padding: 6px 15px; border-radius: 20px; color: #fff;">あなたは: ----</span>
+        </div>
+        
+        <p id="game-info" style="font-size: 18px; margin-top: 25px; font-weight: bold; color: #7a5c43;">カードの残り: 4枚 / 10枚</p>
+        <div id="status" class="status-blue">お題にいちばん近いカードをえらんでね！</div>
+
+        <hr>
+        <h3 style="color: #ff69b4; font-size: 18px;">✨ 今回のお題 ✨</h3>
+        <div class="card-container">
+            <div id="target-card" class="card target-card">待機中</div>
+        </div>
+
+        <h3 style="color: #20b2aa; font-size: 18px;">🥞 場のカード 🥞</h3>
+        <div id="field-container" class="card-container"></div>
+        <hr>
+
+        <div id="reveal-area" class="hidden" style="margin: 30px;">
+            <button id="reveal-btn" class="menu-btn" style="background: #ff1493; box-shadow: 0 6px 0px #c71585; font-size: 20px; padding: 15px 45px;">
+                💗 みんなの答えをオープン！ 💗
+            </button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="result-box hidden">
+        <h2 id="result-title" style="color: #ff69b4; margin-top: 0; letter-spacing: 2px;">🎀 こたえあわせ 🎀</h2>
+        <h3 id="result-verdict" style="font-size: 20px; margin: 25px 0; line-height: 1.5;"></h3>
+        
+        <div class="vote-list" id="vote-details-container"></div>
+
+        <button id="next-round-btn" class="menu-btn" style="background: #20b2aa; box-shadow: 0 5px 0px #008b8b; width: 90%;">
+            つぎのラウンドへ ⏭️
+        </button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="main.js"></script>
+</body>
+</html>
